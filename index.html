@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, query, addDoc, deleteDoc } from 'firebase/firestore';
-import { FileText, Users, ClipboardList, RotateCcw, Save, FileDown, ShieldCheck, Search, Trash2 } from 'lucide-react';
+import { getFirestore, collection, doc, setDoc, onSnapshot, query, addDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { FileText, Users, ClipboardList, RotateCcw, Save, FileDown, ShieldCheck, Search, Trash2, FileCheck, Truck, CheckCircle2, Circle, X, Lock, UserPlus, Mail, User, LogOut, Phone, Pencil } from 'lucide-react';
 
 const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
@@ -18,682 +18,723 @@ const OPTIONS_LOGEMENT = ['NC', 'Appart.', 'Maison', 'Box', 'Duplex', 'Cave', 'L
 const OPTIONS_ASCENSEUR = ['NC', 'Non', 'Oui (1p)', 'Oui (2p)', 'Oui (3p)', 'Oui (4p)', 'Oui (5p)', 'Oui (6p+)'];
 const OPTIONS_ESCALIER = ['NC', 'Étroit', 'Moyen', 'Large'];
 const OPTIONS_DESIGNATION = ['Prix forfaitaire ECO', 'Prix forfaitaire STANDARD', 'Prix forfaitaire CONFORT', 'Matériels / Emballages & Livraison', 'Monte-charge', 'Stationnement & AOT', 'Garde-meuble', 'Déchetterie'];
-const OPTIONS_MONTE_CHARGE = ['Oui', 'Non', 'NC'];
 const OPTIONS_FORMULE = ['ECO', 'STANDARD', 'CONFORT', 'MAD'];
 const OPTIONS_ASSURANCE = ['Oui', 'Non'];
-const OPTIONS_SERVICES_INVENTAIRE = [
-  'Démontage',
-  'Démontage / Remontage',
-  'Décrochage',
-  'Décrochage / Fixation',
-  'Montage',
-  'Déchetterie',
-  'Fragile',
-  'Lourd',
-  'Objet d\'art / Ancien'
-];
+const OPTIONS_SERVICES_INVENTAIRE = ['Démontage', 'Démontage / Remontage', 'Décrochage', 'Décrochage / Fixation', 'Montage', 'Déchetterie', 'Fragile', 'Lourd', 'Objet d\'art / Ancien'];
+const OPTIONS_MONTE_CHARGE = ['Oui', 'Non', 'NC'];
 
-const capitalize = (str) => {
-  if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1);
+const headerInputClass = "w-full bg-transparent outline-none text-[12px] text-[#203764] placeholder:text-[#203764]/40";
+const headerLabelClass = "text-[#203764] font-medium whitespace-nowrap text-[12px]";
+const headerBoxClass = "bg-gray-50 p-4 rounded border border-gray-200 flex flex-col gap-1.5 shadow-sm h-full text-left";
+const headerTitleClass = "text-[13px] font-medium uppercase tracking-widest text-[#203764]";
+
+const cap = (val) => {
+  if (!val || typeof val !== 'string') return val;
+  return val.charAt(0).toUpperCase() + val.slice(1);
 };
 
-const headerInputClass = "w-full bg-transparent outline-none text-[11px] text-[#203764] placeholder:text-slate-300";
-const headerLabelClass = "text-slate-500 font-medium whitespace-nowrap text-[11px]";
-const headerBoxClass = "bg-gray-50 p-3 rounded border border-gray-200 flex flex-col gap-1.5 shadow-sm h-full";
-const headerTitleClass = "text-[9px] font-bold uppercase tracking-widest mb-1 border-b border-gray-200 pb-1 text-[#203764]";
+const formatDateDisplay = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
 
-const SelectMini = ({ label, options, value, onChange }) => (
-  <div className="space-y-0.5">
-    <label className="text-[6px] font-bold text-slate-400 uppercase block ml-0.5">{label}</label>
-    <select 
-      className="w-full p-0.5 bg-slate-50 border border-slate-100 rounded text-[9px] outline-none font-bold h-6 appearance-none cursor-pointer text-[#203764]" 
-      value={value} 
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-    </select>
-  </div>
-);
+function SelectMini({ label, options, value, onChange }) {
+  return (
+    <div className="space-y-0.5 text-left">
+      <label className="text-[8px] font-medium text-slate-400 uppercase block ml-0.5">{label}</label>
+      <select 
+        className="w-full p-0.5 bg-slate-50 border border-slate-100 rounded text-[9px] outline-none font-medium h-6 appearance-none cursor-pointer text-[#203764]" 
+        value={value} 
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    </div>
+  );
+}
 
-const LocationBlock = ({ title, data, onChange }) => (
-  <div className="p-3 border bg-white rounded-xl border-slate-200 shadow-sm space-y-2 text-[#203764]">
-    <h3 className="text-[9px] font-bold uppercase tracking-widest border-b border-slate-100 pb-1 flex justify-between items-center text-[#203764]">
-      {title}
-      <input 
-        type="date" 
-        className="text-[9px] bg-slate-50 px-1 py-0.5 rounded outline-none border border-slate-100" 
-        value={data.date || ''} 
-        onChange={(e) => onChange('date', e.target.value)} 
-      />
-    </h3>
-    <div className="space-y-1.5">
-      <input 
-        placeholder="Adresse" 
-        className="w-full p-1.5 bg-slate-50 border border-slate-100 rounded text-[11px] outline-none" 
-        value={data.address || ''} 
-        onChange={(e) => onChange('address', e.target.value)} 
-      />
-      <input 
-        placeholder="Ville & CP" 
-        className="w-full p-1.5 bg-slate-50 border border-slate-100 rounded text-[11px] outline-none" 
-        value={data.city || ''} 
-        onChange={(e) => onChange('city', e.target.value)} 
-      />
-      <div className="grid grid-cols-3 gap-1.5">
-        <SelectMini label="Étage" options={OPTIONS_ETAGE} value={data.floor} onChange={(v) => onChange('floor', v)} />
-        <SelectMini label="Logement" options={OPTIONS_LOGEMENT} value={data.housing} onChange={(v) => onChange('housing', v)} />
-        <SelectMini label="Portage" options={OPTIONS_PORTAGE} value={data.portage} onChange={(v) => onChange('portage', v)} />
-        <SelectMini label="Ascenseur" options={OPTIONS_ASCENSEUR} value={data.elevator} onChange={(v) => onChange('elevator', v)} />
-        <SelectMini label="Escalier" options={OPTIONS_ESCALIER} value={data.stairs} onChange={(v) => onChange('stairs', v)} />
-        <SelectMini label="Monte-meuble" options={OPTIONS_MONTE_CHARGE} value={data.lift} onChange={(v) => onChange('lift', v)} />
+function LocationBlock({ title, data, onChange, isExport = false }) {
+  return (
+    <div className="p-3 border bg-white rounded-xl border-slate-200 shadow-sm space-y-2 text-[#203764] text-left">
+      <h3 className="text-[10px] font-medium uppercase tracking-widest border-b border-slate-100 pb-1 flex justify-between items-center text-[#203764]">
+        {title}
+        {isExport ? (
+          <span className="text-[10px] font-medium">{formatDateDisplay(data.date)}</span>
+        ) : (
+          <input 
+            type="date" 
+            className="text-[10px] bg-slate-50 px-1 py-0.5 rounded outline-none border border-slate-100 text-[#203764]" 
+            value={data.date || ''} 
+            onChange={(e) => onChange('date', e.target.value)} 
+          />
+        )}
+      </h3>
+      <div className="space-y-1.5 text-[#203764]">
+        <input placeholder="Adresse" className="w-full p-1.5 bg-slate-50 border border-slate-100 rounded text-[11px] outline-none text-[#203764]" value={data.address || ''} onChange={(e) => onChange('address', cap(e.target.value))} />
+        <input placeholder="Ville & CP" className="w-full p-1.5 bg-slate-50 border border-slate-100 rounded text-[11px] outline-none text-[#203764]" value={data.city || ''} onChange={(e) => onChange('city', cap(e.target.value))} />
+        <div className="grid grid-cols-3 gap-1.5 text-[#203764]">
+          <SelectMini label="Étage" options={OPTIONS_ETAGE} value={data.floor} onChange={(v) => onChange('floor', v)} />
+          <SelectMini label="Logement" options={OPTIONS_LOGEMENT} value={data.housing} onChange={(v) => onChange('housing', v)} />
+          <SelectMini label="Portage" options={OPTIONS_PORTAGE} value={data.portage} onChange={(v) => onChange('portage', v)} />
+          <SelectMini label="Ascenseur" options={OPTIONS_ASCENSEUR} value={data.elevator} onChange={(v) => onChange('elevator', v)} />
+          <SelectMini label="Escalier" options={OPTIONS_ESCALIER} value={data.stairs} onChange={(v) => onChange('stairs', v)} />
+          <SelectMini label="Monte-meuble" options={OPTIONS_MONTE_CHARGE} value={data.lift} onChange={(v) => onChange('lift', v)} />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+}
 
-const HeaderSegments = ({ currentQuote, handleInputChange }) => (
-  <div className="grid grid-cols-3 gap-4 mb-4 items-stretch text-[11px]">
-    <div className={headerBoxClass}>
-      <h2 className={headerTitleClass}>Entreprise</h2>
-      <input className={`${headerInputClass} font-bold`} value={currentQuote.company.name} onChange={(e) => handleInputChange('company', 'name', e.target.value)} />
-      <div className="flex gap-1 items-center">
-        <span className={headerLabelClass}>SIRET :</span>
-        <input className={headerInputClass} value={currentQuote.company.siret} onChange={(e) => handleInputChange('company', 'siret', e.target.value)} />
+function HeaderSegments({ currentQuote, handleInputChange, mode, isExport = false }) {
+  return (
+    <div className="grid grid-cols-3 gap-4 mb-4 items-stretch text-[11px] text-[#203764]">
+      <div className={headerBoxClass}>
+        <h2 className="text-[13px] font-medium uppercase tracking-widest mb-1 border-b border-gray-200 pb-1 text-[#203764]">Entreprise</h2>
+        <input className={`${headerInputClass} font-medium`} value={currentQuote.company.name || ''} onChange={(e) => handleInputChange('company', 'name', cap(e.target.value))} />
+        <div className="flex gap-1 items-center"><span className={headerLabelClass}>SIRET :</span><input className={headerInputClass} value={currentQuote.company.siret || ''} onChange={(e) => handleInputChange('company', 'siret', e.target.value)} /></div>
+        <input className={headerInputClass} value={currentQuote.company.address || ''} onChange={(e) => handleInputChange('company', 'address', cap(e.target.value))} />
+        <input className={headerInputClass} value={currentQuote.company.phone || ''} onChange={(e) => handleInputChange('company', 'phone', e.target.value)} />
+        <input className={headerInputClass} value={currentQuote.company.email || ''} onChange={(e) => handleInputChange('company', 'email', e.target.value.toLowerCase())} />
       </div>
-      <input className={headerInputClass} value={currentQuote.company.address} onChange={(e) => handleInputChange('company', 'address', e.target.value)} />
-      <input className={headerInputClass} value={currentQuote.company.phone} onChange={(e) => handleInputChange('company', 'phone', e.target.value)} />
-      <input className={headerInputClass} value={currentQuote.company.email} onChange={(e) => handleInputChange('company', 'email', e.target.value)} />
+      <div className={headerBoxClass}>
+        <div className="flex justify-between items-center border-b border-gray-200 mb-1 pb-1 text-[#203764]">
+          <h2 className={headerTitleClass}>{mode === 'invoice' ? 'Facture' : mode === 'waybill' ? 'Transport' : 'Devis'}</h2>
+          {isExport ? (
+            <span className="text-[12px] font-medium">{formatDateDisplay(currentQuote.quoteInfo.date)}</span>
+          ) : (
+            <input type="date" className="text-[12px] text-[#203764] bg-transparent outline-none text-right w-24" value={currentQuote.quoteInfo.date || ''} onChange={(e) => handleInputChange('quoteInfo', 'date', e.target.value)} />
+          )}
+        </div>
+        <div className="flex justify-between py-0.5 gap-2"><span className={headerLabelClass}>Référent :</span><input className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.manager || ''} onChange={(e) => handleInputChange('quoteInfo', 'manager', cap(e.target.value))} /></div>
+        <div className="flex justify-between py-0.5 gap-2"><span className={headerLabelClass}>Téléphone :</span><input className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.managerPhone || ''} onChange={(e) => handleInputChange('quoteInfo', 'managerPhone', e.target.value)} /></div>
+        <div className="flex justify-between py-0.5 gap-2"><span className={headerLabelClass}>Email :</span><input className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.managerEmail || ''} onChange={(e) => handleInputChange('quoteInfo', 'managerEmail', e.target.value.toLowerCase())} /></div>
+        <div className="flex justify-between py-0.5 gap-2 mt-auto text-[#203764]"><span className={headerLabelClass}>N° {mode === 'invoice' ? 'Facture' : 'Devis'} :</span><input className={`${headerInputClass} text-right font-medium`} value={mode === 'invoice' ? currentQuote.quoteInfo.invoiceNumber : currentQuote.quoteInfo.number} onChange={(e) => handleInputChange('quoteInfo', mode === 'invoice' ? 'invoiceNumber' : 'number', e.target.value)} /></div>
+      </div>
+      <div className={headerBoxClass}>
+        <h2 className="text-[13px] font-medium uppercase tracking-widest mb-1 border-b border-gray-200 pb-1 text-[#203764]">Client</h2>
+        <input className={`${headerInputClass} font-medium`} placeholder="Nom & Prénom" value={currentQuote.client.name || ''} onChange={(e) => handleInputChange('client', 'name', cap(e.target.value))} />
+        <input className={headerInputClass} placeholder="Adresse" value={currentQuote.client.address || ''} onChange={(e) => handleInputChange('client', 'address', cap(e.target.value))} />
+        <input className={headerInputClass} placeholder="Ville & CP" value={currentQuote.client.city || ''} onChange={(e) => handleInputChange('client', 'city', cap(e.target.value))} />
+        <div className="flex gap-1 items-center"><span className={headerLabelClass}>Email :</span><input className={headerInputClass} placeholder="..." value={currentQuote.client.email || ''} onChange={(e) => handleInputChange('client', 'email', e.target.value.toLowerCase())} /></div>
+        <div className="flex gap-1 items-center"><span className={headerLabelClass}>Numéro :</span><input className={headerInputClass} placeholder="..." value={currentQuote.client.phone || ''} onChange={(e) => handleInputChange('client', 'phone', e.target.value)} /></div>
+      </div>
     </div>
+  );
+}
 
-    <div className={headerBoxClass}>
-      <h2 className={headerTitleClass}>Devis</h2>
-      <div className="flex justify-between py-0.5 gap-2">
-        <span className={headerLabelClass}>Référent :</span>
-        <input className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.manager} onChange={(e) => handleInputChange('quoteInfo', 'manager', e.target.value)} />
+function UniversalFooter({ currentQuote, handleInputChange, mode, isExport = false }) {
+  return (
+    <div className="mt-6 border-t border-gray-200 pt-3 flex justify-between items-center text-[11px] text-[#203764]">
+      <div className="flex items-center gap-1 text-left text-[#203764]">
+        <span>Fait à</span>
+        <input className="border-b border-dotted border-gray-400 outline-none w-28 bg-transparent text-center text-[#203764]" value={currentQuote.signatureCity || ''} onChange={(e) => handleInputChange('signatureCity', null, cap(e.target.value))} placeholder="Lieu" />
+        <span>, le</span>
+        {isExport ? (
+          <span className="font-medium border-b border-dotted border-gray-400 px-2 min-w-[80px] text-center">{formatDateDisplay(currentQuote.signatureDate)}</span>
+        ) : (
+          <input type="date" className="bg-transparent outline-none border-b border-dotted border-gray-400 px-1 text-[#203764]" value={currentQuote.signatureDate || ''} onChange={(e) => handleInputChange('signatureDate', null, e.target.value)} />
+        )}
       </div>
-      <div className="flex justify-between py-0.5 gap-2">
-        <span className={headerLabelClass}>Numéro :</span>
-        <input className={`${headerInputClass} text-right font-bold`} value={currentQuote.quoteInfo.number} onChange={(e) => handleInputChange('quoteInfo', 'number', e.target.value)} />
-      </div>
-      <div className="flex justify-between py-0.5 gap-2">
-        <span className={headerLabelClass}>Email :</span>
-        <input className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.managerEmail} onChange={(e) => handleInputChange('quoteInfo', 'managerEmail', e.target.value)} />
-      </div>
-      <div className="flex justify-between py-0.5 gap-2 mt-auto">
-        <span className={headerLabelClass}>Date :</span>
-        <input type="date" className={`${headerInputClass} text-right`} value={currentQuote.quoteInfo.date} onChange={(e) => handleInputChange('quoteInfo', 'date', e.target.value)} />
+      <div className="flex items-center gap-4 text-left text-[#203764]">
+        <span className="font-medium text-[#203764]">{mode === 'waybill' ? 'Visas transporteur et client :' : 'Signature client :'}</span>
+        <div className="w-40 h-10 border border-gray-100 rounded bg-gray-50/30 shadow-inner"></div>
       </div>
     </div>
+  );
+}
 
-    <div className={headerBoxClass}>
-      <h2 className={headerTitleClass}>Client</h2>
-      <input className={`${headerInputClass} font-bold`} placeholder="Nom & Prénom" value={currentQuote.client.name} onChange={(e) => handleInputChange('client', 'name', e.target.value)} />
-      <input className={headerInputClass} placeholder="Adresse" value={currentQuote.client.address} onChange={(e) => handleInputChange('client', 'address', e.target.value)} />
-      <input className={headerInputClass} placeholder="Ville & CP" value={currentQuote.client.city} onChange={(e) => handleInputChange('client', 'city', e.target.value)} />
-      <div className="flex gap-1 items-center">
-        <span className={headerLabelClass}>Email :</span>
-        <input className={headerInputClass} placeholder="..." value={currentQuote.client.email} onChange={(e) => handleInputChange('client', 'email', e.target.value)} />
+function QuoteView({ id, currentQuote, handleInputChange, totalHT, totalTTC, handleUnitInput, handleItemChange, formatTTC, isExport = false }) {
+  return (
+    <div id={id} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm text-[#203764]">
+      <div style={{ backgroundColor: PRIMARY_COLOR }} className="absolute top-0 left-0 w-full h-1"></div>
+      <HeaderSegments currentQuote={currentQuote} handleInputChange={handleInputChange} mode="quote" isExport={isExport} />
+      <div className="grid grid-cols-3 gap-3 mb-4 text-[12px]">
+        <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm text-left"><label className="block text-[8px] text-slate-400 font-medium uppercase text-left">Volume</label><input type="text" className="w-full font-medium outline-none text-[#203764]" value={currentQuote.prestations.volume || ''} placeholder="0 m3" onChange={(e) => handleUnitInput('prestations', 'volume', e.target.value, 'm3')} /></div>
+        <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm text-left"><label className="block text-[8px] text-slate-400 font-medium uppercase text-left">Formule</label><select className="w-full font-medium outline-none bg-transparent text-[#203764]" value={currentQuote.prestations.formula || ''} onChange={(e) => handleInputChange('prestations', 'formula', e.target.value)}><option value="">Sélectionner</option>{OPTIONS_FORMULE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></div>
+        <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm text-left"><label className="block text-[8px] text-slate-400 font-medium uppercase text-left">Distance</label><input type="text" className="w-full font-medium outline-none text-[#203764]" value={currentQuote.prestations.distance || ''} placeholder="0 km" onChange={(e) => handleUnitInput('prestations', 'distance', e.target.value, 'km')} /></div>
       </div>
-      <div className="flex gap-1 items-center">
-        <span className={headerLabelClass}>Numéro :</span>
-        <input className={headerInputClass} placeholder="..." value={currentQuote.client.phone} onChange={(e) => handleInputChange('client', 'phone', e.target.value)} />
+      <div className="grid grid-cols-2 gap-4 mb-4 text-left">
+        <LocationBlock title="Adresse de Chargement" data={currentQuote.loading} onChange={(f, v) => handleInputChange('loading', f, v)} isExport={isExport} />
+        <LocationBlock title="Adresse de Déchargement" data={currentQuote.unloading} onChange={(f, v) => handleInputChange('unloading', f, v)} isExport={isExport} />
       </div>
+      <div className="grid grid-cols-2 gap-6 items-start text-left text-[#203764]">
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[120px]">
+            <h2 className="text-[9px] font-medium uppercase tracking-widest mb-1 border-b border-slate-200 pb-0.5 text-[#203764]">Détails de la prestation</h2>
+            <textarea className="w-full bg-transparent outline-none resize-none text-red-600 font-medium text-[12px] min-h-[80px]" placeholder="..." value={currentQuote.details || ''} onChange={(e) => handleInputChange('details', null, cap(e.target.value))} />
+          </div>
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-[11px]">
+            <h2 className="text-[9px] font-medium uppercase tracking-widest mb-1 border-b border-slate-200 pb-0.5 text-[#203764]">Paiement</h2>
+            <div className="flex justify-between items-center text-[#203764]"><span>Acompte :</span><input type="text" className="bg-white border border-slate-200 rounded px-2 py-0.5 text-right font-medium w-24 shadow-sm outline-none text-[#203764]" value={currentQuote.payment.deposit || ''} placeholder="0 €" onChange={(e) => handleUnitInput('payment', 'deposit', e.target.value, '€')} /></div>
+            <div className="flex justify-between items-center text-[#203764]"><span>Mode :</span><input className="bg-transparent text-right outline-none w-32 font-medium text-[#203764]" value={currentQuote.payment.methods || ''} onChange={(e) => handleInputChange('payment', 'methods', cap(e.target.value))} /></div>
+          </div>
+        </div>
+        <div className="border rounded-xl border-slate-200 overflow-hidden bg-white shadow-sm h-full">
+          <table className="w-full border-collapse table-fixed text-[11px]">
+            <thead><tr className="bg-slate-50 text-center text-[8px] uppercase font-medium text-slate-500 border-b border-slate-200"><th className="p-2 w-8 font-medium">#</th><th className="p-2 w-[58%] font-medium">Désignation</th><th className="p-2 w-14 font-medium">TVA %</th><th className="p-2 w-20 text-center font-medium">HT €</th><th className="p-2 w-24 text-center font-medium">TTC €</th></tr></thead>
+            <tbody className="divide-y divide-slate-100 text-center text-[#203764]">
+              {currentQuote.items.map((item, idx) => (
+                <tr key={item.id}>
+                  <td className="p-1.5 text-slate-300">{item.id}</td>
+                  <td><select className="w-full bg-transparent outline-none h-6 truncate font-medium text-[#203764]" value={item.designation || ''} onChange={(e) => handleItemChange(idx, 'designation', e.target.value)}><option value=""></option>{OPTIONS_DESIGNATION.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
+                  <td className="text-slate-500 font-medium">{item.tvaRate ? `${item.tvaRate}%` : ''}</td>
+                  <td className="text-center text-slate-400 text-[11px]">{item.ht !== '' ? `${parseFloat(item.ht).toFixed(2)} €` : ''}</td>
+                  <td><div className="relative flex items-center justify-center h-6"><input type="number" step="0.01" style={{ color: PRIMARY_COLOR }} className="w-20 bg-transparent text-right font-medium h-6 pr-1 outline-none appearance-none" value={item.ttc || ''} onChange={(e) => handleItemChange(idx, 'ttc', e.target.value)} onBlur={() => formatTTC(idx)} />{item.ttc !== '' && <span className="font-medium text-[11px] ml-1 text-[#203764]">€</span>}</div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="flex justify-end mt-4">
+        <div className="w-64 space-y-1 text-right text-[#203764]">
+          <div className="flex justify-between text-[11px] text-slate-500 px-2"><span>Total HT</span><span>{totalHT !== 0 ? `${totalHT.toFixed(2)} €` : ''}</span></div>
+          <div style={{ backgroundColor: PRIMARY_COLOR }} className="flex justify-between items-center text-white px-4 py-2 rounded-xl shadow mt-1">
+            <span className="font-medium text-[9px] uppercase tracking-wider text-white">Total TTC</span>
+            <span className="text-[20px] text-white">{totalTTC !== 0 ? `${totalTTC.toFixed(2)} €` : ''}</span>
+          </div>
+        </div>
+      </div>
+      <UniversalFooter currentQuote={currentQuote} handleInputChange={handleInputChange} mode="quote" isExport={isExport} />
     </div>
-  </div>
-);
+  );
+}
 
-const UniversalFooter = ({ currentQuote, handleInputChange }) => (
-  <div className="mt-6 border-t border-gray-200 pt-3 flex justify-between items-center text-[11px]">
-    <div className="flex items-center gap-1">
-      <span>Fait à</span>
-      <input 
-        className="border-b border-dotted border-gray-400 outline-none w-28 bg-transparent text-center text-[#203764]" 
-        value={currentQuote.signatureCity || ''} 
-        onChange={(e) => handleInputChange('signatureCity', null, e.target.value)} 
-        placeholder="Lieu" 
-      />
-      <span>, le</span>
-      <input 
-        type="date" 
-        className="bg-transparent outline-none border-b border-dotted border-gray-400 px-1 text-[#203764]" 
-        value={currentQuote.signatureDate || ''} 
-        onChange={(e) => handleInputChange('signatureDate', null, e.target.value)} 
-      />
+function InvoiceView({ id, currentQuote, handleInputChange, totalHT, totalTTC, isExport = false }) {
+  const tva = totalTTC - totalHT;
+  return (
+    <div id={id} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm text-[#203764]">
+      <div style={{ backgroundColor: PRIMARY_COLOR }} className="absolute top-0 left-0 w-full h-1"></div>
+      <div className="flex justify-between items-start mb-6 text-left">
+        <div>
+          <h2 className="text-3xl font-medium uppercase tracking-tighter text-[#203764]">Facture</h2>
+          {!isExport && (
+            <div className="mt-2 flex items-center gap-2 no-print text-[#203764]">
+              <button onClick={() => handleInputChange('quoteInfo', 'isPaid', !currentQuote.quoteInfo.isPaid)} className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-medium transition-all ${currentQuote.quoteInfo.isPaid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{currentQuote.quoteInfo.isPaid ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}{currentQuote.quoteInfo.isPaid ? 'ACQUITTÉE' : 'À RÉGLER'}</button>
+            </div>
+          )}
+        </div>
+        {currentQuote.quoteInfo.isPaid && (
+          <div className="border-4 border-green-600/30 text-green-600 rounded-lg p-2 rotate-[-12deg] font-medium text-xl flex flex-col items-center leading-none"><span>ACQUITTÉE</span><span className="text-[10px] mt-1">{formatDateDisplay(currentQuote.quoteInfo.date)}</span></div>
+        )}
+      </div>
+      <HeaderSegments currentQuote={currentQuote} handleInputChange={handleInputChange} mode="invoice" isExport={isExport} />
+      <div className="mt-6 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full border-collapse text-[11px]">
+          <thead><tr className="bg-slate-50 font-medium border-b border-slate-200 text-center"><th className="p-3 w-1/2 font-medium">Désignation</th><th className="p-3 font-medium">TVA %</th><th className="p-3 font-medium">HT €</th><th className="p-3 font-medium">TTC €</th></tr></thead>
+          <tbody className="divide-y divide-slate-100 text-[#203764]">
+            {currentQuote.items.filter(i => i.ttc !== '').map(item => (
+              <tr key={item.id} className="text-center text-[#203764]">
+                <td className="p-3 text-left font-medium">{item.designation || ''}</td>
+                <td className="p-3">{item.tvaRate || 0}%</td>
+                <td className="p-3">{item.ht !== '' ? parseFloat(item.ht).toFixed(2) : '0.00'} €</td>
+                <td className="p-3 font-medium">{item.ttc !== '' ? parseFloat(item.ttc).toFixed(2) : '0.00'} €</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex justify-end mt-6">
+        <div className="w-64 space-y-1 text-right text-[#203764]">
+          <div className="flex justify-between text-slate-500 px-2"><span>Total HT</span><span>{totalHT.toFixed(2)} €</span></div>
+          <div className="flex justify-between text-slate-500 px-2"><span>TVA (20%)</span><span>{tva.toFixed(2)} €</span></div>
+          <div style={{ backgroundColor: PRIMARY_COLOR }} className="flex justify-between items-center text-white px-4 py-3 rounded-xl shadow mt-2"><span className="font-medium text-[10px] uppercase tracking-wider text-white">Total TTC</span><span className="text-2xl text-white">{totalTTC.toFixed(2)} €</span></div>
+        </div>
+      </div>
+      <div className="mt-10 text-[10px] text-slate-400 space-y-1 border-t border-slate-100 pt-4 text-left"><p>H2 LOGISTIQUE - SAS au capital de 15 000€</p><p>Conditions de règlement : {currentQuote.payment.methods || ''}</p></div>
     </div>
-    <div className="flex items-center gap-4">
-      <span className="font-bold text-[#203764]">Signature client :</span>
-      <div className="w-40 h-10 border border-gray-100 rounded bg-gray-50/30 shadow-inner"></div>
+  );
+}
+
+function WaybillView({ id, currentQuote, handleInputChange, isExport = false }) {
+  return (
+    <div id={id} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm text-[#203764] text-left h-[297mm]">
+      <div style={{ backgroundColor: PRIMARY_COLOR }} className="absolute top-0 left-0 w-full h-1"></div>
+      <div className="text-center mb-6"><h2 className="text-xl font-medium uppercase tracking-widest text-[#203764]">Lettre de Voiture de Déménagement</h2><p className="text-[9px] text-slate-500 mt-1 italic text-center">Réglementation française - Arrêté du 9 novembre 1999</p></div>
+      <HeaderSegments currentQuote={currentQuote} handleInputChange={handleInputChange} mode="waybill" isExport={isExport} />
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50/50 space-y-1">
+          <h3 className="font-medium text-[11px] uppercase mb-1 border-b pb-1 text-[#203764]">1. Informations Transport</h3>
+          <p className="text-[10px]">Volume estimé : {currentQuote.prestations.volume || '... m3'}</p>
+          <p className="text-[10px]">Nature des objets : Mobilier domestique / personnel</p>
+          <p className="text-[10px]">Mode d'exécution : Transport routier de marchandises</p>
+          <p className="text-[10px]">Immatriculation Véhicule : ..............................................</p>
+        </div>
+        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50/50 space-y-1 text-[#203764]">
+          <h3 className="font-medium text-[11px] uppercase mb-1 border-b pb-1 text-[#203764]">2. Calendrier et Formule</h3>
+          <p className="text-[10px]">Date Chargement : {formatDateDisplay(currentQuote.loading.date) || '...'}</p>
+          <p className="text-[10px]">Date Livraison : {formatDateDisplay(currentQuote.unloading.date) || '...'}</p>
+          <p className="text-[10px]">Prestation : {currentQuote.prestations.formula || '...'}</p>
+          <p className="text-[10px]">Kilométrage total : {currentQuote.prestations.distance || '... km'}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4 mt-4 text-[#203764]">
+        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50/50 h-36 flex flex-col">
+          <h3 className="font-medium text-[11px] uppercase mb-1 border-b pb-1 text-[#203764]">3. Visa Prise en Charge</h3>
+          <p className="text-[9.5px] italic flex-1 text-left">Le client reconnaît que les objets ont été pris en charge en bon état apparent, sauf mention contraire figurant sur l'inventaire.</p>
+          <div className="flex justify-between mt-auto">
+            <span className="text-[9px] uppercase font-medium text-[#203764]">Transporteur</span>
+            <span className="text-[9px] uppercase font-medium text-[#203764]">Client</span>
+          </div>
+        </div>
+        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50/50 h-36 flex flex-col text-[#203764]">
+          <h3 className="font-medium text-[11px] uppercase mb-1 border-b pb-1 text-[#203764]">4. Visa Livraison / Fin de Travail</h3>
+          <p className="text-[9.5px] italic flex-1 text-left">Réserves éventuelles à la livraison : .........................................................................................................</p>
+          <div className="flex justify-between mt-auto">
+            <span className="text-[9px] uppercase font-medium text-[#203764]">Transporteur</span>
+            <span className="text-[9px] uppercase font-medium text-[#203764]">Client</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50/50 text-[10px] leading-relaxed text-[#203764] italic text-left">
+        <strong>Déclaration de fin de travail :</strong> Je soussigné client, déclare avoir reçu les biens transportés en bon état, sous réserve des observations notées ci-dessus. <br/>
+        <strong>Avertissement :</strong> Conformément à l'article L. 133-3 du Code de commerce, la réception sans réserve éteint toute action, sauf preuve contraire apportée par recommandé sous dix jours calendaires.
+      </div>
+      <UniversalFooter currentQuote={currentQuote} handleInputChange={handleInputChange} mode="waybill" isExport={isExport} />
     </div>
-  </div>
-);
+  );
+}
+
+function InventoryView({ id, currentQuote, handleInventoryChange, handleInputChange, addInventoryRows, isExport = false }) {
+  return (
+    <div id={id} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm text-[#203764]">
+      <div style={{ backgroundColor: PRIMARY_COLOR }} className="absolute top-0 left-0 w-full h-1"></div>
+      <HeaderSegments currentQuote={currentQuote} handleInputChange={handleInputChange} mode="inventory" isExport={isExport} />
+      <div className="space-y-4 text-left">
+        <div className="text-center border-b border-slate-100 pb-2"><h2 style={{ color: PRIMARY_COLOR }} className="text-lg font-medium uppercase text-[#203764]">Inventaire et Déclaration de Valeur</h2></div>
+        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm text-left">
+          <table className="w-full border-collapse table-fixed text-[15px] text-left">
+            <thead>
+              <tr className="bg-slate-50 uppercase font-medium text-slate-500 border-b border-slate-200 text-center"><th className="p-3 w-12 border-r text-[#203764] font-medium">#</th><th className="p-3 w-[35%] border-r text-[#203764] font-medium">Mobilier</th><th className="p-3 w-16 border-r text-[#203764] font-medium">Qté</th><th className="p-3 w-24 border-r text-[#203764] font-medium">Valeur (€)</th><th className="p-3 w-28 border-r text-[#203764] font-medium text-[#203764]">ASSURANCE</th><th className="p-3 w-[25%] text-[#203764] font-medium">Option</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-center text-[#203764]">
+              {currentQuote.inventory.map((item, idx) => (
+                <tr key={item.id}>
+                  <td className="p-2 text-slate-300 border-r border-slate-100">{item.id}</td>
+                  <td className="p-2 border-r border-slate-100 text-[#203764] text-left"><input className="w-full bg-transparent outline-none h-8 px-1 text-[#203764]" value={item.item || ''} onChange={(e) => handleInventoryChange(idx, 'item', cap(e.target.value))} /></td>
+                  <td className="p-2 border-r border-slate-100 text-[#203764]"><input type="number" className="w-full bg-transparent text-center outline-none h-8 text-[#203764]" value={item.qty || ''} onChange={(e) => handleInventoryChange(idx, 'qty', e.target.value)} /></td>
+                  <td className="p-2 border-r border-slate-100 text-[#203764]"><input type="text" className="w-full bg-transparent text-center outline-none h-8 text-[#203764]" value={item.unitValue || ''} onChange={(e) => handleInventoryChange(idx, 'unitValue', e.target.value)} /></td>
+                  <td className="p-2 border-r border-slate-100 text-[#203764]"><select className="w-full bg-transparent outline-none text-center h-8 font-medium appearance-none cursor-pointer text-[#203764]" value={item.insurance || ''} onChange={(e) => handleInventoryChange(idx, 'insurance', e.target.value)}><option value=""></option>{OPTIONS_ASSURANCE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
+                  <td className="p-2 text-[#203764]"><select className="w-full bg-transparent outline-none h-8 font-medium text-center appearance-none cursor-pointer text-[#203764]" value={item.option || ''} onChange={(e) => handleInventoryChange(idx, 'option', e.target.value)}><option value=""></option>{OPTIONS_SERVICES_INVENTAIRE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!isExport && <div className="flex justify-center no-print text-left"><button onClick={addInventoryRows} className="px-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 text-[#203764] font-medium shadow-sm transition-all">Ajouter 30 lignes supplémentaires</button></div>}
+        <UniversalFooter currentQuote={currentQuote} handleInputChange={handleInputChange} mode="quote" isExport={isExport} />
+      </div>
+    </div>
+  );
+}
+
+function CGVView({ id, currentQuote, handleInputChange, isExport = false }) {
+  return (
+    <div id={id} className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-[#203764] text-left h-[297mm] flex flex-col">
+      <h2 className="text-[18px] text-center uppercase tracking-tight mb-6 font-medium underline underline-offset-4 text-[#203764]">Conditions Générales de Vente</h2>
+      <div className="grid grid-cols-2 gap-x-10 text-[11px] leading-[1.4] text-slate-700 overflow-hidden text-left flex-1">
+        <div className="space-y-4 text-left">
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 1 - PRESTATION</h3><p>Les prestations correspondent strictement à celles prévues au devis. L’entreprise n’assure pas le transport de : personnes, animaux, bijoux, pierres précieuses, objet et œuvre d'art, espèces, titres, vins, alcools, spiritueux, matières dangereuses ou objets soumis à réglementation particulière, sauf accord exprès et écrit. Lorsque l’emballage est réalisé par le client, l’entreprise n’est pas responsable des dommages liés à un emballage défectueux ou insuffisant (article L. 224-63 du Code de la consommation).</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 2 - RÉSILIATION OU REPORT</h3><p>En cas de résiliation par le client : les arrhes versées demeurent acquises à l’entreprise (article 1590 du Code civil), s’il n’y a pas eu d’arrhes, l’entreprise peut réclamer 30 % du montant TTC du devis. En cas de report à l’initiative du client, les frais déjà engagés (main-d’œuvre, matériel, autorisations) restent dus. En cas de résiliation par l’entreprise (hors force majeure), les arrhes sont restituées. Aucun dédommagement n’est dû en cas de force majeure (article 1218 du Code civil).</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 3 - INFORMATIONS PRÉALABLES</h3><p>Le client doit fournir toutes les informations nécessaires au bon déroulement du déménagement : adresses précises, conditions d’accès (stationnement, ascenseur, étages, voirie), autorisations administratives, nature des biens, particularités éventuelles. Toute omission, inexactitude ou information tardive peut entraîner : des frais supplémentaires facturés au client, ou un refus d’exécution par l’entreprise. Les objets soumis à réglementation (armes, matières dangereuses, produits inflammables, biens soumis à douane, etc.) relèvent exclusivement de la responsabilité du client. Un devis gratuit est remis conformément à l’article L. 111-1 du Code de la consommation.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 4 - RESPONSABILITÉ</h3><p>Conformément à l’article L. 133-1 du Code de commerce, l’entreprise est responsable de la perte ou de l’avarie des biens transportés, sauf : force majeure, vice propre de la chose, faute ou négligence du client. Ne sont pas couverts : vétusté, usure normale, défauts préexistants.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 5 - INDEMNISATION ET ASSURANCE</h3><p>L’indemnisation ne peut excéder le préjudice matériel prouvé et reste limitée : aux plafonds fixés par la déclaration de valeur du client, ou aux plafonds légaux applicables. Le client peut souscrire une assurance complémentaire à ses frais, conformément à l’article L. 211-1 du Code des assurances.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 6 - LIVRAISON ET RÉSERVES</h3><p>Le client doit vérifier ses biens à la livraison, signer la lettre de voiture et émettre d’éventuelles réserves claires, précises et motivées. Les réserves doivent être confirmées par recommandé avec accusé de réception dans un délai de dix jours (article L. 224-65 du Code de la consommation). En cas d’impossibilité de livraison imputable au client, les biens sont entreposés aux frais et risques du client.</p></section>
+        </div>
+        <div className="space-y-4 text-left">
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 7 - DÉLAIS D'EXÉCUTION</h3><p>Lorsque le contrat prévoit une date ou une période d’exécution, l’entreprise s’engage à la respecter, sauf cas de force majeure. Si aucun délai n’a été fixé, le client peut mettre en demeure l’entreprise après trois mois d’inexécution, puis résilier le contrat après quinze jours supplémentaires sans intervention.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 8 - PAIEMENT ET FACTURATION</h3><p>Le prix est celui indiqué au devis, accepté et signé par le client. Sauf conditions particulières, un acompte peut être demandé à la commande, le solde étant dû comptant le jour du déménagement. En cas de retard de paiement, des pénalités sont exigibles sans mise en demeure préalable, calculées au taux légal en vigueur, ainsi qu’une indemnité forfaitaire de 40 euros pour frais de recouvrement (article L. 441-10 du Code de commerce).</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 9 - PRESCRIPTION</h3><p>Toute action en responsabilité est prescrite par un an à compter de la livraison (article L. 133-6 du Code de commerce).</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 10 - PROTECTION DES DONNÉES PERSONNELLES</h3><p>Les données recueillies dans le cadre du contrat (nom, adresse, téléphone, e-mail, informations liées au déménagement) sont utilisées exclusivement pour l’exécution du service et le suivi client. Conformément au RGPD et à la loi Informatique et Libertés, le client dispose d’un droit d’accès, de rectification et d’opposition en contactant l’entreprise.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 11 – MÉDIATION ET LITIGES</h3><p>En cas de litige, le client consommateur peut saisir gratuitement un médiateur de la consommation (Art. L. 612-1 du Code de la consommation). À défaut de résolution amiable, tout litige relève de la compétence exclusive des tribunaux du ressort du siège social de l’entreprise.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 12 – CONDITIONS D'ACCÈS</h3><p>Le client s'engage à fournir un accès aux lieux de prestation en état de propreté et de salubrité. L'entreprise se réserve le droit de se rétracter sans préavis en cas de : Présence avérée de nuisibles ou État de dégradation extrême (insalubrité). L'entreprise est autorisée à conserver les acomptes et facturer les frais engagés.</p></section>
+          <section className="text-left text-[#203764]"><h3 className="font-medium uppercase mb-0.5">ARTICLE 13 – ASSURANCE ET DÉCLARATION DE VALEUR</h3><p>L'assurance contractuelle de base est limitée à 1 500 € par objet et 60 000 € par déménagement. Le client peut souscrire une Assurance Complémentaire (Ad Valorem) pour les objets excédant 1 500 € pour un coût de 0,30 % de la valeur déclarée. Déclaration notifiée par écrit sur l’inventaire et validée avant la prestation.</p></section>
+        </div>
+      </div>
+      <div className="mt-8 border-t border-slate-100 pt-6 flex justify-between items-end text-[#203764]">
+        <div className="space-y-2 text-left">
+          <p className="text-[11px]">Fait à ................................., le ..../..../20....</p>
+          <p className="italic underline underline-offset-2 text-[10px]">Lu et approuvé, bon pour accord</p>
+        </div>
+        <div className="text-center space-y-2 text-[#203764]">
+          <p className="font-medium text-[11px]">Signature du client</p>
+          <div className="w-56 h-20 border border-slate-200 rounded-lg bg-slate-50/50 shadow-inner"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccessView({ systemUsers, onAddUser, onUpdateUser, onDeleteUser }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [manager, setManager] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [editId, setEditId] = useState(null);
+
+  const handleSave = () => {
+    if (username && password && manager) {
+      const data = { username, password, manager, email, phone };
+      if (editId) { onUpdateUser(editId, data); setEditId(null); }
+      else { onAddUser(data); }
+      setUsername(''); setPassword(''); setManager(''); setEmail(''); setPhone('');
+    }
+  };
+
+  const startEdit = (u) => {
+    setEditId(u.id);
+    setUsername(u.username);
+    setPassword(u.password);
+    setManager(u.manager);
+    setEmail(u.email || '');
+    setPhone(u.phone || '');
+  };
+
+  return (
+    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-8 text-[#203764] text-left">
+      <div className="flex items-center gap-2 border-b pb-4 text-left"><Users className="w-6 h-6 text-[#203764]" /><h2 className="text-xl font-medium uppercase tracking-tight text-[#203764]">Gestion des Utilisateurs</h2></div>
+      <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 text-left">
+        <h3 className="font-medium text-sm flex items-center gap-2 uppercase tracking-wider text-[#203764]">{editId ? 'Modifier l\'identifiant' : 'Nouvel identifiant'}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+          <div className="space-y-1 text-left text-[#203764]"><label className="text-[10px] uppercase font-medium text-slate-400 text-left block text-[#203764]">Identifiant</label><div className="relative text-left"><input type="text" value={username} onChange={(e) => setUsername(cap(e.target.value))} className="w-full p-2 pl-8 border rounded-lg outline-none focus:ring-1 focus:ring-[#203764] text-xs text-[#203764]" placeholder="Pseudo" /><User className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" /></div></div>
+          <div className="space-y-1 text-left text-[#203764]"><label className="text-[10px] uppercase font-medium text-slate-400 text-left block text-[#203764]">Mot de passe</label><input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border rounded-lg outline-none focus:ring-1 focus:ring-[#203764] text-xs text-[#203764]" placeholder="••••••••" /></div>
+          <div className="space-y-1 text-left text-[#203764]"><label className="text-[10px] uppercase font-medium text-slate-400 text-left block text-[#203764]">Référent</label><input type="text" value={manager} onChange={(e) => setManager(cap(e.target.value))} className="w-full p-2 border rounded-lg outline-none focus:ring-1 focus:ring-[#203764] text-xs text-[#203764]" placeholder="Nom complet" /></div>
+          <div className="space-y-1 text-left text-[#203764]"><label className="text-[10px] uppercase font-medium text-slate-400 text-left block text-[#203764]">Email</label><div className="relative text-left"><input type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} className="w-full p-2 pl-8 border rounded-lg outline-none focus:ring-1 focus:ring-[#203764] text-xs text-[#203764]" placeholder="email@exemple.com" /><Mail className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" /></div></div>
+          <div className="space-y-1 text-left text-[#203764]"><label className="text-[10px] uppercase font-medium text-slate-400 text-left block text-[#203764]">Numéro</label><div className="relative text-left"><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full p-2 pl-8 border rounded-lg outline-none focus:ring-1 focus:ring-[#203764] text-xs text-[#203764]" placeholder="06 00 00 00 00" /><Phone className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" /></div></div>
+        </div>
+        <div className="flex gap-2 text-left">
+          <button onClick={handleSave} className="bg-[#203764] text-white px-6 py-2 rounded-lg text-xs font-medium shadow-lg hover:opacity-90 transition-all">Sauvegarder</button>
+          {editId && <button onClick={() => {setEditId(null); setUsername(''); setPassword(''); setManager(''); setEmail(''); setPhone('');}} className="bg-slate-200 text-slate-600 px-6 py-2 rounded-lg text-xs font-medium transition-colors">Annuler</button>}
+        </div>
+      </div>
+      <div className="space-y-4 text-left text-[#203764]">
+        <h3 className="font-medium text-sm uppercase tracking-wider text-[#203764]">Liste des accès</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+          {systemUsers.map(u => (
+            <div key={u.id} className="p-4 border border-slate-100 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex justify-between items-center group text-left">
+              <div className="space-y-1 text-left text-[#203764]">
+                <div className="font-medium text-sm text-[#203764]">{u.username}</div>
+                {u.manager && <div className="text-[10px] text-slate-600">Référent: {u.manager}</div>}
+                {u.phone && <div className="text-[10px] font-medium">{u.phone}</div>}
+                {u.email && <div className="text-[10px] text-slate-500 truncate max-w-[150px]">{u.email}</div>}
+              </div>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-left">
+                <button onClick={() => startEdit(u)} className="text-slate-300 hover:text-blue-500 p-2"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => onDeleteUser(u.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loadingState, setLoadingState] = useState(true);
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
-  const [view, setView] = useState('quote');
+  const [systemUsers, setSystemUsers] = useState([]);
+  const [view, setView] = useState('login');
   const [notification, setNotification] = useState(null);
   const [scriptsLoaded, setScriptsLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedForExport, setSelectedForExport] = useState({ quote: true, inventory: false, cgv: false, invoice: false, waybill: false });
+  const [isExporting, setIsExporting] = useState(false);
+  const [sessionUser, setSessionUser] = useState(null);
+  const [loginRef, setLoginRef] = useState('');
+  const [loginPwd, setLoginPwd] = useState('');
+  const [pin, setPin] = useState('');
+  const [accessGranted, setAccessGranted] = useState(false);
+
   const getInitialQuoteState = useCallback(() => ({
-    company: {
-      name: 'H2 LOGISTIQUE',
-      siret: '894 472 513 00015',
-      address: '25 Rue de l’Industrie, 75011 Paris',
-      phone: '01 40 20 30 40',
-      email: 'helmi@gmail.com'
-    },
-    quoteInfo: {
-      number: '',
-      manager: '',
-      managerPhone: '',
-      managerEmail: '',
-      date: new Date().toISOString().split('T')[0],
-      validity: '30 Jours'
-    },
-    client: {
-      name: '',
-      address: '',
-      city: '',
-      phone: '',
-      email: ''
-    },
-    header: { 
-      serialNumber: `INV-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`,
-      infoDevis: 'Devis de prestation de service'
-    },
-    details: '',
-    payment: {
-      methods: 'Virement, Carte Bancaire',
-      deposit: ''
-    },
+    company: { name: 'H2 LOGISTIQUE', siret: '894 472 513 00015', address: '4 Rue Didot, 75014 Paris', phone: '01 84 80 20 02', email: 'Demenagement@h2logistique.com' },
+    quoteInfo: { number: '', invoiceNumber: '', isPaid: false, manager: sessionUser?.manager || '', managerPhone: sessionUser?.phone || '', managerEmail: sessionUser?.email || '', date: new Date().toISOString().split('T')[0], validity: '30 Jours' },
+    client: { name: '', address: '', city: '', phone: '', email: '' },
+    header: { serialNumber: `INV-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`, infoDevis: 'Prestation de service' },
+    details: '', payment: { methods: 'Virement, Carte Bancaire', deposit: '' },
     prestations: { date: '', formula: '', volume: '', distance: '', type: '' },
     loading: { date: '', address: '', city: '', floor: 'NC', portage: 'NC', housing: 'NC', elevator: 'NC', stairs: 'NC', lift: 'NC', details: '' },
     unloading: { date: '', address: '', city: '', floor: 'NC', portage: 'NC', housing: 'NC', elevator: 'NC', stairs: 'NC', lift: 'NC', details: '' },
-    items: Array(6).fill(null).map((_, i) => ({ 
-      id: i + 1, 
-      designation: '', 
-      ht: '', 
-      tvaRate: '',
-      ttc: '' 
-    })),
-    inventory: Array(30).fill(null).map((_, i) => ({
-      id: i + 1,
-      item: '',
-      qty: '',
-      unitValue: '',
-      insurance: '',
-      option: ''
-    })),
-    guaranteeMode: '',
-    signatureCity: '',
-    signatureDate: new Date().toISOString().split('T')[0]
-  }), []);
+    items: Array(6).fill(null).map((_, i) => ({ id: i + 1, designation: '', ht: '', tvaRate: '', ttc: '' })),
+    inventory: Array(30).fill(null).map((_, i) => ({ id: i + 1, item: '', qty: '', unitValue: '', insurance: '', option: '' })),
+    guaranteeMode: '', signatureCity: '', signatureDate: new Date().toISOString().split('T')[0]
+  }), [sessionUser]);
 
   const [currentQuote, setCurrentQuote] = useState(getInitialQuoteState());
-  const quoteRef = useRef(null);
 
   useEffect(() => {
-    const loadScript = (src) => {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        document.head.appendChild(script);
-      });
-    };
-
+    const loadScript = (src) => new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      document.head.appendChild(script);
+    });
     Promise.all([
       loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
       loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
     ]).then(() => setScriptsLoaded(true));
-
     const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.error("Auth error:", error);
-      }
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+      else await signInAnonymously(auth);
     };
     initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoadingState(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, u => { setUser(u); setLoadingState(false); });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!user) return;
     const qQuotes = query(collection(db, 'artifacts', appId, 'public', 'data', 'quotes'));
-    const unsubQuotes = onSnapshot(qQuotes, (snapshot) => {
-      setQuotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (err) => console.error(err));
-
+    onSnapshot(qQuotes, s => setQuotes(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const qClients = query(collection(db, 'artifacts', appId, 'public', 'data', 'clients'));
-    const unsubClients = onSnapshot(qClients, (snapshot) => {
-      setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (err) => console.error(err));
-
-    return () => {
-      unsubQuotes();
-      unsubClients();
-    };
+    onSnapshot(qClients, s => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const qUsers = query(collection(db, 'artifacts', appId, 'public', 'data', 'system_users'));
+    onSnapshot(qUsers, s => setSystemUsers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [user]);
 
-  const handleInputChange = useCallback((section, field, value) => {
+  const handleInputChange = useCallback((sec, field, val) => {
     setCurrentQuote(prev => {
-      if (field === null) {
-        return { ...prev, [section]: value };
-      }
-      const newState = {
-        ...prev,
-        [section]: { ...prev[section], [field]: value }
-      };
-      if (section === 'client' && (field === 'address' || field === 'city')) {
-        newState.loading = { ...newState.loading, [field]: value };
-      }
-      return newState;
+      if (field === null) return { ...prev, [sec]: val };
+      const ns = { ...prev, [sec]: { ...prev[sec], [field]: val } };
+      if (sec === 'client' && (field === 'address' || field === 'city')) ns.loading = { ...ns.loading, [field]: val };
+      return ns;
     });
   }, []);
 
-  const handleUnitInput = (section, field, value, unit) => {
-    let numeric = value.replace(new RegExp(`\\s*${unit}$`, 'i'), '').replace(/[^\d.]/g, '');
-    let finalValue = numeric ? `${numeric} ${unit}` : "";
-    setCurrentQuote(prev => ({
-      ...prev,
-      [section]: { ...prev[section], [field]: finalValue }
-    }));
+  const handleUnitInput = (sec, f, v, u) => {
+    let n = v.replace(new RegExp(`\\s*${u}$`, 'i'), '').replace(/[^\d.]/g, '');
+    setCurrentQuote(prev => ({ ...prev, [sec]: { ...prev[sec], [f]: n ? `${n} ${u}` : "" } }));
   };
 
-  const handleItemChange = (index, field, value) => {
-    const newItems = [...currentQuote.items];
-    let item = { ...newItems[index], [field]: value };
-    if (field === 'designation') item.tvaRate = value !== '' ? 20 : '';
-    if (field === 'ttc') {
-      const ttcVal = value === '' ? '' : parseFloat(value);
-      item.ht = (ttcVal === '' || isNaN(ttcVal)) ? '' : (ttcVal / 1.2).toFixed(2);
-    } else if (field === 'designation' || field === 'tvaRate') {
-      const ttcVal = item.ttc === '' ? '' : parseFloat(item.ttc);
-      if (ttcVal !== '' && !isNaN(ttcVal)) item.ht = (ttcVal / 1.2).toFixed(2);
+  const handleItemChange = (idx, f, v) => {
+    const ni = [...currentQuote.items];
+    let it = { ...ni[idx], [f]: v };
+    if (f === 'designation') it.tvaRate = v !== '' ? 20 : '';
+    if (f === 'ttc') {
+      const tv = v === '' ? '' : parseFloat(v);
+      it.ht = (tv === '' || isNaN(tv)) ? '' : (tv / 1.2).toFixed(2);
+    } else if (f === 'designation' || f === 'tvaRate') {
+      const tv = it.ttc === '' ? '' : parseFloat(it.ttc);
+      if (tv !== '' && !isNaN(tv)) it.ht = (tv / 1.2).toFixed(2);
     }
-    newItems[index] = item;
-    setCurrentQuote(prev => ({ ...prev, items: newItems }));
+    ni[idx] = it;
+    setCurrentQuote(prev => ({ ...prev, items: ni }));
   };
 
-  const formatTTC = (index) => {
-    const newItems = [...currentQuote.items];
-    const val = newItems[index].ttc;
-    if (val !== '' && !isNaN(val)) {
-      newItems[index].ttc = parseFloat(val).toFixed(2);
-      setCurrentQuote(prev => ({ ...prev, items: newItems }));
-    }
+  const formatTTC = (idx) => {
+    const ni = [...currentQuote.items];
+    const v = ni[idx].ttc;
+    if (v !== '' && !isNaN(v)) { ni[idx].ttc = parseFloat(v).toFixed(2); setCurrentQuote(prev => ({ ...prev, items: ni })); }
   };
 
-  const handleInventoryChange = (index, field, value) => {
-    const newInventory = [...currentQuote.inventory];
-    if (field === 'unitValue') {
-      let numeric = value.replace(/\s*€$/i, '').replace(/[^\d.]/g, '');
-      newInventory[index][field] = numeric ? `${numeric} €` : "";
-    } else {
-      newInventory[index][field] = value;
-    }
-    setCurrentQuote(prev => ({ ...prev, inventory: newInventory }));
+  const handleInventoryChange = (idx, f, v) => {
+    const ni = [...currentQuote.inventory];
+    if (f === 'unitValue') {
+      let n = v.replace(/\s*€$/i, '').replace(/[^\d.]/g, '');
+      ni[idx][f] = n ? `${n} €` : "";
+    } else ni[idx][f] = v;
+    setCurrentQuote(prev => ({ ...prev, inventory: ni }));
   };
 
   const addInventoryRows = () => {
-    const startId = currentQuote.inventory.length + 1;
-    const newRows = Array(30).fill(null).map((_, i) => ({
-      id: startId + i, item: '', qty: '', unitValue: '', insurance: '', option: ''
-    }));
-    setCurrentQuote(prev => ({ ...prev, inventory: [...prev.inventory, ...newRows] }));
-    setNotification('Trente lignes ajoutées');
-    setTimeout(() => setNotification(null), 2000);
+    const sid = currentQuote.inventory.length + 1;
+    const nr = Array(30).fill(null).map((_, i) => ({ id: sid + i, item: '', qty: '', unitValue: '', insurance: '', option: '' }));
+    setCurrentQuote(prev => ({ ...prev, inventory: [...prev.inventory, ...nr] }));
   };
 
   const calculateTotals = () => {
-    let totalHT = 0;
-    let totalTTC = 0;
-    currentQuote.items.forEach(item => {
-      totalHT += parseFloat(item.ht) || 0;
-      totalTTC += parseFloat(item.ttc) || 0;
-    });
-    return { totalHT, totalTVA: totalTTC - totalHT, totalTTC };
+    let ht = currentQuote.items.reduce((acc, it) => acc + (parseFloat(it.ht) || 0), 0);
+    let ttc = currentQuote.items.reduce((acc, it) => acc + (parseFloat(it.ttc) || 0), 0);
+    return { ht, ttc };
   };
-
-  const { totalHT, totalTVA, totalTTC } = calculateTotals();
+  const { ht: totalHT, ttc: totalTTC } = calculateTotals();
 
   const saveQuote = async () => {
     if (!user) return;
     try {
-      const dataToSave = { ...currentQuote, updatedAt: new Date().toISOString(), userId: user.uid };
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'quotes'), dataToSave);
-      
+      const data = { ...currentQuote, updatedAt: new Date().toISOString(), userId: user.uid };
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'quotes'), data);
       if (currentQuote.client.name) {
-        const clientDocId = currentQuote.client.name.replace(/\s+/g, '_');
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientDocId), {
-          ...currentQuote,
-          userId: user.uid,
-          lastUpdated: new Date().toISOString()
-        });
+        const docId = currentQuote.client.name.replace(/\s+/g, '_');
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', docId), { ...currentQuote, userId: user.uid, lastUpdated: new Date().toISOString() });
       }
-
-      setNotification('Données enregistrées');
+      setNotification('Enregistré');
       setTimeout(() => setNotification(null), 3000);
-    } catch (error) {
-      console.error("Save error", error);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  const exportPDF = async () => {
+  const processExport = async () => {
     if (!scriptsLoaded) return;
-    const element = quoteRef.current;
-    element.classList.add('pdf-mode');
+    const sk = Object.keys(selectedForExport).filter(k => selectedForExport[k]);
+    if (!sk.length) return;
+    setIsExporting(true); setShowPdfModal(false);
     try {
-      const canvas = await window.html2canvas(element, { 
-        scale: 1.8, useCORS: true, backgroundColor: '#ffffff', windowWidth: 1000
-      });
-      const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, 295));
-      pdf.save(`${view === 'quote' ? 'Devis' : 'Inventaire'}_${currentQuote.quoteInfo.number || 'Sans_Numero'}.pdf`);
-    } catch (err) {
-      console.error("PDF error:", err);
-    } finally {
-      element.classList.remove('pdf-mode');
+      const pw = pdf.internal.pageSize.getWidth();
+      for (let i = 0; i < sk.length; i++) {
+        const el = document.getElementById(`export-${sk[i]}`);
+        if (!el) continue;
+        if (i > 0) pdf.addPage();
+        const canvas = await window.html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: 1000 });
+        const ph = (canvas.height * pw) / canvas.width;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pw, Math.min(ph, 295));
+      }
+      pdf.save(`H2_Export.pdf`);
+    } catch (e) { console.error(e); } finally { setIsExporting(false); }
+  };
+
+  const selectClient = (cd) => { setCurrentQuote({ ...getInitialQuoteState(), ...cd }); setView('quote'); };
+  const deleteClient = async (id, e) => { e.stopPropagation(); if (!user) return; await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id)); };
+  const filteredClients = useMemo(() => clients.filter(c => c.client?.name?.toLowerCase().includes(searchTerm.toLowerCase())), [clients, searchTerm]);
+
+  const addSystemUser = async (d) => { if (!user) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'system_users'), { ...d, createdAt: new Date().toISOString() }); };
+  const updateSystemUser = async (id, d) => { if (!user) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'system_users', id), d); };
+  const deleteSystemUser = async (id) => { if (!user) return; await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'system_users', id)); };
+
+  const handlePinCheck = (v) => {
+    setPin(v);
+    if (v === '10 10' || v === '1010') { setAccessGranted(true); setView('access'); setPin(''); }
+  };
+
+  const handleLogin = async () => {
+    if (loginRef === 'Admin' && loginPwd === '1010') {
+      const sa = { manager: 'Admin', email: 'Demenagement@h2logistique.com', phone: '01 84 80 20 02' };
+      setSessionUser(sa);
+      if (user) { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'session', 'current'), { manager: 'Admin' }); }
+      setCurrentQuote(prev => ({ ...prev, quoteInfo: { ...prev.quoteInfo, manager: 'Admin', managerEmail: sa.email, managerPhone: sa.phone } }));
+      setView('quote');
+      return;
+    }
+
+    const account = systemUsers.find(u => u.manager === loginRef && u.password === loginPwd);
+    if (account) {
+      setSessionUser(account);
+      if (user) { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'session', 'current'), { manager: account.manager }); }
+      setCurrentQuote(prev => ({ ...prev, quoteInfo: { ...prev.quoteInfo, manager: account.manager, managerEmail: account.email, managerPhone: account.phone } }));
+      setView('quote');
     }
   };
-
-  const selectClient = (clientData) => {
-    setCurrentQuote({
-      ...getInitialQuoteState(),
-      ...clientData
-    });
-    setView('quote');
-    setNotification(`Client ${clientData.client.name} chargé`);
-    setTimeout(() => setNotification(null), 2000);
-  };
-
-  const deleteClient = async (id, e) => {
-    e.stopPropagation();
-    if (!user) return;
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id));
-      setNotification('Client supprimé');
-      setTimeout(() => setNotification(null), 2000);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const filteredClients = useMemo(() => {
-    return clients.filter(c => 
-      c.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.client?.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.client?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [clients, searchTerm]);
 
   if (loadingState) return null;
 
+  if (view === 'login') {
+    return (
+      <div className="min-h-screen bg-[#203764] flex items-center justify-center p-6 text-left">
+        <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md space-y-8 animate-in zoom-in-95 duration-300 text-center">
+          <div className="flex flex-col items-center space-y-2">
+            <div className="p-4 bg-slate-50 rounded-2xl mb-2 text-center text-[#203764]"><Truck className="w-10 h-10 text-[#203764]" /></div>
+            <h1 className="text-2xl font-medium text-[#203764] uppercase tracking-tighter">H2 LOGISTIQUE</h1>
+            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest text-center">Portail Commercial</p>
+          </div>
+          <div className="space-y-4 text-left text-[#203764]">
+            <div className="space-y-1.5 text-left text-[#203764]"><label className="text-[10px] font-medium text-slate-400 uppercase ml-1 text-[#203764]">Référent</label><div className="relative text-left text-[#203764]"><User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" /><input type="text" value={loginRef} onChange={e => setLoginRef(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-1 focus:ring-[#203764] text-xs transition-all text-[#203764]" placeholder="Nom complet" /></div></div>
+            <div className="space-y-1.5 text-left text-[#203764]"><label className="text-[10px] font-medium text-slate-400 uppercase ml-1 text-[#203764]">Mot de passe</label><div className="relative text-left text-[#203764]"><Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" /><input type="password" value={loginPwd} onChange={e => setLoginPwd(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-1 focus:ring-[#203764] text-xs transition-all text-[#203764]" placeholder="••••••••" /></div></div>
+          </div>
+          <button onClick={handleLogin} className="w-full bg-[#203764] text-white py-4 rounded-xl font-medium uppercase tracking-widest text-xs shadow-lg shadow-[#203764]/20 hover:opacity-90">Se connecter</button>
+          <div className="text-center text-left text-[#203764]"><button onClick={() => setView('pin')} className="text-[9px] font-medium text-slate-300 uppercase hover:text-slate-500 transition-colors text-center text-left">Configuration système</button></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 p-2 md:p-6 font-sans text-slate-800 text-[13px]">
-      <style>{`
-        .pdf-mode { width: 1000px !important; margin: 0 !important; padding: 15px !important; transform: scale(1); }
-        .pdf-mode input, .pdf-mode select, .pdf-mode textarea { border: none !important; appearance: none !important; background: transparent !important; }
-        .pdf-mode .no-print { display: none !important; }
-        .pdf-mode .section-header { margin-bottom: 4px !important; }
-        .pdf-mode .grid { gap: 6px !important; }
-        .pdf-mode .text-xl { font-size: 16px !important; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
+    <div className="min-h-screen bg-slate-50 p-2 md:p-6 font-sans text-slate-800 text-[13px] text-left">
+      <style>{`.pdf-export-hidden { position: absolute; left: -9999px; top: -9999px; width: 1000px; }`}</style>
+      {notification && <div className="fixed top-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-xl z-[110] animate-in fade-in">{notification}</div>}
       
-      {notification && (
-        <div className="fixed top-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-xl z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-          {notification}
+      {showPdfModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 text-left">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden text-left">
+            <div style={{ backgroundColor: PRIMARY_COLOR }} className="p-4 flex justify-between items-center text-white text-left"><h3 className="font-medium flex items-center gap-2 text-white"><FileDown className="w-4 h-4 text-white" /> Sélectionner les pages</h3><button onClick={() => setShowPdfModal(false)}><X className="w-5 h-5 text-white" /></button></div>
+            <div className="p-6 space-y-4">
+              {[{ k: 'quote', l: 'Devis', i: <FileText className="w-4 h-4" /> },{ k: 'inventory', l: 'Inventaire', i: <ClipboardList className="w-4 h-4" /> },{ k: 'cgv', l: 'CGV', i: <ShieldCheck className="w-4 h-4" /> },{ k: 'invoice', l: 'Facture', i: <FileCheck className="w-4 h-4" /> },{ k: 'waybill', l: 'Lettre de voiture', i: <Truck className="w-4 h-4" /> }].map(p => (
+                <label key={p.k} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer text-[#203764]">
+                  <input type="checkbox" className="w-4 h-4 accent-[#203764]" checked={selectedForExport[p.k]} onChange={() => setSelectedForExport(prev => ({ ...prev, [p.k]: !prev[p.k] }))} />
+                  <span className="flex items-center gap-2 font-medium">{p.i} {p.l}</span>
+                </label>
+              ))}
+            </div>
+            <div className="p-4 bg-slate-50 flex gap-3 text-left"><button onClick={() => setShowPdfModal(false)} className="flex-1 py-2 text-xs font-medium border rounded-lg transition-colors text-left text-left">Annuler</button><button onClick={processExport} style={{ backgroundColor: PRIMARY_COLOR }} className="flex-1 py-2 text-xs font-medium text-white rounded-lg shadow-lg shadow-[#203764]/20 transition-all text-left text-left">Générer PDF</button></div>
+          </div>
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto space-y-4">
-        <div className="flex flex-wrap justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm no-print gap-3">
-          <div className="flex gap-4 items-center">
-            <h1 style={{ color: PRIMARY_COLOR }} className="text-base font-black tracking-tight flex items-center gap-2">
-              <ClipboardList className="w-4 h-4" /> Système Commercial
-            </h1>
-            <nav className="flex bg-slate-100 p-1 rounded-lg">
-              <button onClick={() => setView('quote')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'quote' ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><FileText className="w-3 h-3" /> Devis</button>
-              <button onClick={() => setView('inventory')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'inventory' ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><ClipboardList className="w-3 h-3" /> Inventaire</button>
-              <button onClick={() => setView('clients')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'clients' ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><Users className="w-3 h-3" /> Clients</button>
-              <button onClick={() => setView('cgv')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'cgv' ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><ShieldCheck className="w-3 h-3" /> CGV</button>
+      <div className="pdf-export-hidden text-left">
+        <QuoteView id="export-quote" currentQuote={currentQuote} handleInputChange={handleInputChange} totalHT={totalHT} totalTTC={totalTTC} handleUnitInput={handleUnitInput} handleItemChange={handleItemChange} formatTTC={formatTTC} isExport={true} />
+        <InventoryView id="export-inventory" currentQuote={currentQuote} handleInventoryChange={handleInventoryChange} handleInputChange={handleInputChange} addInventoryRows={addInventoryRows} isExport={true} />
+        <CGVView id="export-cgv" currentQuote={currentQuote} handleInputChange={handleInputChange} isExport={true} />
+        <InvoiceView id="export-invoice" currentQuote={currentQuote} handleInputChange={handleInputChange} totalHT={totalHT} totalTTC={totalTTC} isExport={true} />
+        <WaybillView id="export-waybill" currentQuote={currentQuote} handleInputChange={handleInputChange} isExport={true} />
+      </div>
+
+      <div className="max-w-6xl mx-auto space-y-4 text-left">
+        <div className="flex flex-wrap justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm no-print gap-3 text-left">
+          <div className="flex gap-4 items-center text-left">
+            <h1 style={{ color: PRIMARY_COLOR }} className="text-base font-medium tracking-tight flex items-center gap-2 text-left"><Truck className="w-4 h-4 text-[#203764]" /> {sessionUser?.manager || 'PORTAIL'}</h1>
+            <nav className="flex bg-slate-100 p-1 rounded-lg text-left">
+              <button onClick={() => setView('quote')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'quote' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><FileText className="w-3 h-3" /> Devis</button>
+              <button onClick={() => setView('inventory')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'inventory' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><ClipboardList className="w-3 h-3" /> Inventaire</button>
+              <button onClick={() => setView('cgv')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'cgv' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><ShieldCheck className="w-3 h-3" /> CGV</button>
+              <button onClick={() => setView('invoice')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'invoice' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><FileCheck className="w-3 h-3" /> Facture</button>
+              <button onClick={() => setView('waybill')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'waybill' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><Truck className="w-3 h-3" /> L. voiture</button>
+              <button onClick={() => setView('clients')} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'clients' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><Users className="w-3 h-3" /> Clients</button>
+              <button onClick={() => { if(!accessGranted) { setView('pin'); } else { setView('access'); } }} className={`px-3 py-1 text-xs rounded-md transition-all flex items-center gap-2 ${view === 'access' ? 'bg-white shadow-sm font-medium text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}><Lock className="w-3 h-3" /> Accès</button>
             </nav>
           </div>
-          <div className="flex gap-2">
-            {view !== 'cgv' && (
-              <>
-                <button onClick={() => { setCurrentQuote(getInitialQuoteState()); setNotification('Réinitialisé'); setTimeout(() => setNotification(null), 2000); }} className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2"><RotateCcw className="w-3 h-3" /> Réinitialiser</button>
-                <button onClick={saveQuote} style={{ backgroundColor: PRIMARY_COLOR }} className="px-3 py-1.5 text-xs font-medium text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"><Save className="w-3 h-3" /> Enregistrer</button>
-                <button onClick={exportPDF} style={{ backgroundColor: PRIMARY_COLOR }} className="px-3 py-1.5 text-xs font-medium text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"><FileDown className="w-3 h-3" /> PDF</button>
+          <div className="flex gap-2 text-left">
+            <button onClick={() => { setSessionUser(null); setView('login'); }} className="px-3 py-1.5 text-xs font-medium text-red-500 border rounded-lg hover:bg-red-50 flex items-center gap-2 transition-all"><LogOut className="w-3 h-3" /> Quitter</button>
+            {view !== 'cgv' && view !== 'clients' && view !== 'access' && view !== 'pin' && (
+              <><button onClick={() => setCurrentQuote(getInitialQuoteState())} className="px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-slate-50 flex items-center gap-2 text-[#203764] transition-all text-left"><RotateCcw className="w-3 h-3" /> Réinitialiser</button>
+                <button onClick={saveQuote} style={{ backgroundColor: PRIMARY_COLOR }} className="px-3 py-1.5 text-xs font-medium text-white rounded-lg shadow-sm hover:opacity-90 flex items-center gap-2 transition-all text-white text-left"><Save className="w-3 h-3 text-white" /> Enregistrer</button>
+                <button onClick={() => setShowPdfModal(true)} style={{ backgroundColor: PRIMARY_COLOR }} disabled={isExporting} className="px-3 py-1.5 text-xs font-medium text-white rounded-lg shadow-sm hover:opacity-90 flex items-center gap-2 transition-all text-white disabled:opacity-50 text-left"><FileDown className="w-3 h-3 text-white" /> PDF</button>
               </>
             )}
           </div>
         </div>
 
-        {view === 'clients' ? (
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 style={{ color: PRIMARY_COLOR }} className="text-xl font-bold flex items-center gap-2">
-                <Users className="w-5 h-5" /> Base Clients
-              </h2>
-              <div className="relative w-64">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher un client..." 
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-[#203764] transition-all text-xs"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+        {view === 'pin' ? (
+          <div className="bg-white p-12 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center space-y-6 text-left text-[#203764] text-center text-center">
+            <Lock className="w-12 h-12 text-slate-200" />
+            <div className="text-center text-left text-center text-center text-center text-center"><h2 className="text-lg font-medium text-[#203764] uppercase tracking-widest text-center text-center text-center text-center text-center">Zone sécurisée</h2><p className="text-xs text-slate-400 mt-1 font-medium text-center text-center text-center text-center text-center">Entrez le code pour accéder à la gestion des utilisateurs</p></div>
+            <input type="password" value={pin} onChange={(e) => handlePinCheck(e.target.value)} className="w-48 p-4 text-center text-3xl font-medium border-2 border-slate-100 rounded-2xl outline-none focus:border-[#203764] tracking-widest bg-slate-50 transition-all text-left text-[#203764] text-center" placeholder="••••" autoFocus />
+            <button onClick={() => setView(sessionUser ? 'quote' : 'login')} className="text-[10px] uppercase font-medium text-slate-300 hover:text-[#203764] transition-colors text-center text-center text-center text-center">Annuler</button>
+          </div>
+        ) : view === 'access' ? (
+          <AccessView systemUsers={systemUsers} onAddUser={addSystemUser} onUpdateUser={updateSystemUser} onDeleteUser={deleteSystemUser} />
+        ) : view === 'clients' ? (
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6 text-left text-[#203764]">
+            <div className="flex justify-between items-center text-left text-[#203764] text-left">
+              <h2 style={{ color: PRIMARY_COLOR }} className="text-xl font-medium flex items-center gap-2 text-[#203764] text-left text-[#203764]"><Users className="w-5 h-5 text-[#203764]" /> Base Clients</h2>
+              <div className="relative w-64 text-left text-[#203764]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="Rechercher..." className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-[#203764] transition-all text-xs text-[#203764]" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left text-[#203764]">
               {filteredClients.map(c => (
-                <div key={c.id} className="p-3 border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group relative bg-slate-50/30" onClick={() => selectClient(c)}>
-                  <button 
-                    onClick={(e) => deleteClient(c.id, e)}
-                    className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                  <div className="font-bold text-[#203764] truncate pr-6">{c.client?.name}</div>
-                  <div className="text-slate-500 truncate text-[10px] mt-1">{c.client?.email}</div>
-                  <div className="text-slate-400 text-[10px]">{c.client?.city}</div>
+                <div key={c.id} className="p-3 border border-slate-100 rounded-xl hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group relative bg-slate-50/30 text-left text-[#203764]" onClick={() => selectClient(c)}>
+                  <button onClick={(e) => deleteClient(c.id, e)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 transition-all text-left text-[#203764] text-left text-[#203764]"><Trash2 className="w-3.5 h-3.5 text-left text-[#203764]" /></button>
+                  <div className="font-medium text-sm text-[#203764] truncate pr-6 text-left text-[#203764]">{c.client?.name}</div>
+                  <div className="text-slate-500 truncate text-[10px] mt-1 text-left text-[#203764]">{c.client?.email}</div>
+                  <div className="text-slate-400 text-[10px] text-left text-[#203764]">{c.client?.city}</div>
                 </div>
               ))}
-              {filteredClients.length === 0 && (
-                <div className="col-span-full py-12 text-center text-slate-400 italic">Aucun client trouvé</div>
-              )}
             </div>
           </div>
+        ) : view === 'waybill' ? (
+          <WaybillView currentQuote={currentQuote} handleInputChange={handleInputChange} />
+        ) : view === 'invoice' ? (
+          <InvoiceView currentQuote={currentQuote} handleInputChange={handleInputChange} totalHT={totalHT} totalTTC={totalTTC} />
+        ) : view === 'inventory' ? (
+          <InventoryView currentQuote={currentQuote} handleInventoryChange={handleInventoryChange} handleInputChange={handleInputChange} addInventoryRows={addInventoryRows} />
         ) : view === 'cgv' ? (
-          <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm overflow-auto max-h-[85vh]">
-            <h2 style={{ color: PRIMARY_COLOR }} className="text-base text-center uppercase tracking-tight mb-8 font-bold underline decoration-[#203764] underline-offset-8">Conditions Générales de Vente</h2>
-            <div className="grid grid-cols-2 gap-10 text-[11px] leading-relaxed text-slate-700">
-              <div className="space-y-6 text-justify">
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 1 - PRESTATION</h3>
-                  <p>Les prestations correspondent strictement à celles prévues au devis. L’entreprise n’assure pas le transport de : personnes, animaux, bijoux, pierres précieuses, objet et œuvre d'art, espèces, titres, vins, alcools, spiritueux, matières dangereuses ou objets soumis à réglementation particulière, sauf accord exprès et écrit.</p>
-                  <p>Lorsque l’emballage est réalisé par le client, l’entreprise n’est pas responsable des dommages liés à un emballage défectueux ou insuffisant (article L. 224-63 du Code de la consommation).</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 2 - RÉSILIATION OU REPORT</h3>
-                  <p>En cas de résiliation par le client : les arrhes versées demeurent acquises à l’entreprise (article 1590 du Code civil), s’il n’y a pas eu d’arrhes, l’entreprise peut réclamer 30 % du montant TTC du devis. En cas de report à l’initiative du client, les frais déjà engagés (main-d’œuvre, matériel, autorisations) restent dus.</p>
-                  <p>En cas de résiliation par l’entreprise (hors force majeure), les arrhes sont restituées. Aucun dédommagement n’est dû en cas de force majeure (article 1218 du Code civil).</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 3 - INFORMATIONS PRÉALABLES</h3>
-                  <p>Le client doit fournir toutes les informations nécessaires au bon déroulement du déménagement : adresses précises, conditions d’accès (stationnement, ascenseur, étages, voirie), autorisations administratives, nature des biens, particularités éventuelles. Toute omission, inexactitude ou information tardive peut entraîner des frais supplémentaires facturés au client ou un refus d’exécution par l’entreprise. Les objets soumis à réglementation (armes, matières dangereuses, produits inflammables, biens soumis à douane, etc.) relèvent exclusivement de la responsabilité du client. Un devis gratuit est remis conformément à l’article L. 111-1 du Code de la consommation.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 4 - RESPONSABILITÉ</h3>
-                  <p>Conformément à l’article L. 133-1 du Code de commerce, l’entreprise est responsable de la perte ou de l’avarie des biens transportés, sauf cas de force majeure, vice propre de la chose ou faute ou négligence du client. Ne sont pas couverts : vétusté, usure normale, défauts préexistants.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 5 - INDEMNISATION ET ASSURANCE</h3>
-                  <p>L’indemnisation ne peut excéder le préjudice matériel prouvé et reste limitée aux plafonds fixés par la déclaration de valeur du client ou aux plafonds légaux applicables. Le client peut souscrire une assurance complémentaire à ses frais, conformément à l’article L. 211-1 du Code des assurances.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 6 - LIVRAISON ET RÉSERVES</h3>
-                  <p>Le client doit vérifier ses biens à la livraison, signer la lettre de voiture et émettre d’éventuelles réserves claires, précises et motivées. Les réserves doivent être confirmées par lettre recommandée avec accusé de réception dans un délai de dix jours (article L. 224-65 du Code de la consommation). En cas d’impossibilité de livraison imputable au client (absence, défaut d’accès, non-paiement), les biens sont entreposés aux frais et risques du client.</p>
-                </section>
-              </div>
-
-              <div className="space-y-6 text-justify">
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 7 - DÉLAIS D'ÉXÉCUTION</h3>
-                  <p>Lorsque le contrat prévoit une date ou une période d’exécution, l’entreprise s’engage à la respecter, sauf cas de force majeure. Si aucun délai n’a été fixé, le client peut mettre en demeure l’entreprise après trois mois d’inexécution, puis résilier le contrat après quinze jours supplémentaires sans intervention.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 8 - PAIEMENT ET FACTURATION</h3>
-                  <p>Le prix est celui indiqué au devis, accepté et signé par le client. Sauf conditions particulières, un acompte peut être demandé à la commande, le solde étant dû comptant le jour du déménagement.</p>
-                  <p>En cas de retard de paiement, des pénalités sont exigibles sans mise en demeure préalable, calculées au taux légal en vigueur, ainsi qu’une indemnité forfaitaire de 40 euros pour frais de recouvrement (article L. 441-10 du Code de commerce).</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 9 - PRESCRIPTION</h3>
-                  <p>Toute action en responsabilité est prescrite par un an à compter de la livraison (article L. 133-6 du Code de commerce).</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 10 - PROTECTION DES DONNÉES</h3>
-                  <p>Les données recueillies dans le cadre du contrat (nom, adresse, téléphone, e-mail, informations liées au déménagement) sont utilisées exclusivement pour l’exécution du service et le suivi client. Conformément au RGPD et à la loi Informatique et Libertés, le client dispose d’un droit d’accès, de rectification, d’opposition et de suppression de ses données en contactant l’entreprise.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 11 – MÉDIATION ET LITIGES</h3>
-                  <p>En cas de litige, le client consommateur peut saisir gratuitement un médiateur de la consommation, conformément aux articles L. 612-1 et suivants du Code de la consommation. À défaut de résolution amiable ou de médiation, tout litige relève de la compétence exclusive des tribunaux du ressort du siège social de l’entreprise.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 12 – CONDITIONS D'ACCÈS</h3>
-                  <p>Le client s'engage à fournir un accès aux lieux en état de propreté et de salubrité. L'entreprise peut se rétracter sans préavis en cas de présence de nuisibles (rongeurs, insectes, parasites) ou état de dégradation extrême du logement ou des biens (insalubrité, risque de contamination). En cas de rétractation pour ces motifs, l'entreprise est autorisée à conserver les acomptes versés.</p>
-                </section>
-
-                <section className="space-y-2">
-                  <h3 style={{ color: PRIMARY_COLOR }} className="font-bold uppercase border-b border-slate-100 pb-1">ARTICLE 13 – ASSURANCE ET VALEUR</h3>
-                  <p>L'assurance contractuelle de base est limitée à 1 500 € par objet et 60 000 € par déménagement. Le client peut souscrire une Assurance Complémentaire (Ad Valorem) pour les objets excédant 1 500 € pour un coût de 0,30 % de la valeur déclarée de l'objet. Cette déclaration doit être notifiée par écrit sur l'inventaire.</p>
-                </section>
-              </div>
-            </div>
-          </div>
+          <CGVView id="active-cgv" currentQuote={currentQuote} handleInputChange={handleInputChange} />
         ) : (
-          <div ref={quoteRef} className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm text-[#203764]">
-            <div style={{ backgroundColor: PRIMARY_COLOR }} className="absolute top-0 left-0 w-full h-1"></div>
-            
-            <HeaderSegments currentQuote={currentQuote} handleInputChange={handleInputChange} />
-
-            {view === 'inventory' ? (
-              <div className="space-y-4">
-                <div className="text-center border-b border-slate-100 pb-2"><h2 style={{ color: PRIMARY_COLOR }} className="text-lg font-black uppercase">Inventaire et Déclaration de Valeur</h2></div>
-                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                  <table className="w-full border-collapse table-fixed text-[15px]">
-                    <thead>
-                      <tr className="bg-slate-50 uppercase font-bold text-slate-500 border-b border-slate-200 text-center">
-                        <th className="p-3 w-12 border-r border-slate-200">#</th>
-                        <th className="p-3 w-2/5 border-r border-slate-200">Mobilier</th>
-                        <th className="p-3 w-20 border-r border-slate-200">Qté</th>
-                        <th className="p-3 w-32 border-r border-slate-200">Valeur (€)</th>
-                        <th className="p-3 w-32 border-r border-slate-200">ASSURANCE</th>
-                        <th className="p-3">Option</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-center">
-                      {currentQuote.inventory.map((item, idx) => (
-                        <tr key={item.id}>
-                          <td className="p-2 text-slate-300 border-r border-slate-100">{item.id}</td>
-                          <td className="p-2 border-r border-slate-100"><input className="w-full bg-transparent outline-none h-8 px-1 text-center" value={item.item} onChange={(e) => handleInventoryChange(idx, 'item', e.target.value)} /></td>
-                          <td className="p-2 border-r border-slate-100"><input type="number" className="w-full bg-transparent text-center outline-none h-8" value={item.qty} onChange={(e) => handleInventoryChange(idx, 'qty', e.target.value)} /></td>
-                          <td className="p-2 border-r border-slate-100"><input type="text" className="w-full bg-transparent text-center outline-none h-8" value={item.unitValue} onChange={(e) => handleInventoryChange(idx, 'unitValue', e.target.value)} /></td>
-                          <td className="p-2 border-r border-slate-100"><select className="w-full bg-transparent outline-none text-center h-8 font-bold appearance-none cursor-pointer" value={item.insurance} onChange={(e) => handleInventoryChange(idx, 'insurance', e.target.value)}><option value=""></option>{OPTIONS_ASSURANCE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
-                          <td className="p-2"><select className="w-full bg-transparent outline-none h-8 font-bold text-center appearance-none cursor-pointer" value={item.option} onChange={(e) => handleInventoryChange(idx, 'option', e.target.value)}><option value=""></option>{OPTIONS_SERVICES_INVENTAIRE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-center no-print"><button onClick={addInventoryRows} className="px-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors shadow-sm font-medium">Ajouter 30 lignes supplémentaires</button></div>
-                <UniversalFooter currentQuote={currentQuote} handleInputChange={handleInputChange} />
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-3 mb-4 text-[12px]">
-                  <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm"><label className="block text-[7px] text-slate-400 font-bold uppercase">Volume</label><input type="text" className="w-full font-bold outline-none" value={currentQuote.prestations.volume} placeholder="0 m3" onChange={(e) => handleUnitInput('prestations', 'volume', e.target.value, 'm3')} /></div>
-                  <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm"><label className="block text-[7px] text-slate-400 font-bold uppercase">Formule</label><select className="w-full font-bold outline-none bg-transparent" value={currentQuote.prestations.formula} onChange={(e) => handleInputChange('prestations', 'formula', e.target.value)}><option value="">Sélectionner</option>{OPTIONS_FORMULE.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></div>
-                  <div className="p-2 border rounded-xl bg-white border-slate-200 shadow-sm"><label className="block text-[7px] text-slate-400 font-bold uppercase">Distance</label><input type="text" className="w-full font-bold outline-none" value={currentQuote.prestations.distance} placeholder="0 km" onChange={(e) => handleUnitInput('prestations', 'distance', e.target.value, 'km')} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <LocationBlock title="Adresse de Chargement" data={currentQuote.loading} onChange={(f, v) => handleInputChange('loading', f, v)} />
-                  <LocationBlock title="Adresse de Déchargement" data={currentQuote.unloading} onChange={(f, v) => handleInputChange('unloading', f, v)} />
-                </div>
-                <div className="grid grid-cols-2 gap-6 items-start">
-                  <div className="space-y-4">
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[120px]">
-                      <h2 className="text-[9px] font-bold uppercase tracking-widest mb-1 border-b border-slate-200 pb-0.5">Détails de la prestation</h2>
-                      <textarea className="w-full bg-transparent outline-none resize-none text-red-600 font-bold text-[12px] min-h-[80px]" placeholder="..." value={currentQuote.details || ''} onChange={(e) => handleInputChange('details', null, e.target.value)} />
-                    </div>
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-[11px]">
-                      <h2 className="text-[9px] font-bold uppercase tracking-widest mb-1 border-b border-slate-200 pb-0.5">Paiement</h2>
-                      <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[9px]">Acompte :</span><input type="text" className="bg-white border border-slate-200 rounded px-2 py-0.5 text-right font-bold w-24 shadow-sm outline-none" value={currentQuote.payment.deposit} placeholder="0 €" onChange={(e) => handleUnitInput('payment', 'deposit', e.target.value, '€')} /></div>
-                      <div className="flex justify-between items-center"><span className="text-slate-500 font-bold uppercase text-[9px]">Mode :</span><input className="bg-transparent text-right outline-none w-32 font-medium" value={currentQuote.payment.methods} onChange={(e) => handleInputChange('payment', 'methods', e.target.value)} /></div>
-                    </div>
-                  </div>
-                  <div className="border rounded-xl border-slate-200 overflow-hidden bg-white shadow-sm h-full">
-                    <table className="w-full border-collapse table-fixed text-[11px]">
-                      <thead><tr className="bg-slate-50 text-center text-[8px] uppercase font-bold text-slate-500 border-b border-slate-200"><th className="p-2 w-8">#</th><th className="p-2 w-1/2">Désignation</th><th className="p-2 w-14">TVA %</th><th className="p-2 w-24">HT €</th><th className="p-2 w-28">TTC €</th></tr></thead>
-                      <tbody className="divide-y divide-slate-100 text-center">
-                        {currentQuote.items.map((item, idx) => (
-                          <tr key={item.id}>
-                            <td className="p-1.5 text-slate-300">{item.id}</td>
-                            <td><select className="w-full bg-transparent outline-none h-6 truncate font-bold" value={item.designation} onChange={(e) => handleItemChange(idx, 'designation', e.target.value)}><option value=""></option>{OPTIONS_DESIGNATION.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></td>
-                            <td className="text-slate-500 font-medium">{item.tvaRate ? `${item.tvaRate}%` : ''}</td>
-                            <td className="text-right text-slate-400 text-[11px] pr-2">{item.ht !== '' ? `${parseFloat(item.ht).toFixed(2)} €` : ''}</td>
-                            <td><div className="relative flex items-center justify-end h-6"><input type="number" step="0.01" style={{ color: PRIMARY_COLOR }} className="w-20 bg-transparent text-right font-bold h-6 pr-1 outline-none appearance-none" value={item.ttc || ''} onChange={(e) => handleItemChange(idx, 'ttc', e.target.value)} onBlur={() => formatTTC(idx)} />{item.ttc !== '' && <span className="font-bold text-[11px] ml-1">€</span>}</div></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="flex justify-end mt-4">
-                  <div className="w-64 space-y-1">
-                    <div className="flex justify-between text-[11px] text-slate-500 px-2"><span>Total HT</span><span>{totalHT !== 0 ? `${totalHT.toFixed(2)} €` : ''}</span></div>
-                    <div style={{ backgroundColor: PRIMARY_COLOR }} className="flex justify-between items-center text-white px-4 py-2 rounded-xl shadow mt-1">
-                      <span className="font-bold text-[9px] uppercase tracking-wider">Total TTC</span>
-                      <span className="font-black text-[20px]">{totalTTC !== 0 ? `${totalTTC.toFixed(2)} €` : ''}</span>
-                    </div>
-                  </div>
-                </div>
-                <UniversalFooter currentQuote={currentQuote} handleInputChange={handleInputChange} />
-              </>
-            )}
-          </div>
+          <QuoteView currentQuote={currentQuote} handleInputChange={handleInputChange} totalHT={totalHT} totalTTC={totalTTC} handleUnitInput={handleUnitInput} handleItemChange={handleItemChange} formatTTC={formatTTC} />
         )}
       </div>
     </div>
